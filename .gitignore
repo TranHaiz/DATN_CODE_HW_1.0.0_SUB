@@ -1,0 +1,33 @@
+# STM32CubeIDE / Eclipse
+.settings/
+*.launch
+.metadata/
+*.sublime-workspace
+*.sublime-project
+
+# Build output
+Debug/
+Release/
+build/
+Drivers/
+MDK-ARM/
+Middlewares/
+
+*.o
+*.d
+*.elf
+*.map
+*.lst
+*.bin
+*.hex
+*.mxproject
+*.ioc
+
+# Backup files
+*~
+*.bak
+
+# OS generated files
+.DS_Store
+Thumbs.db
+desktop.ini
