@@ -65,6 +65,7 @@ typedef enum
 
 /* Public macros ------------------------------------------------------ */
 /* Public variables --------------------------------------------------- */
+#ifdef CONFIG_SD_DEBUG_MODE
 // Debug variables
 extern volatile uint32_t sd_write_count;     // Total write calls
 extern volatile uint32_t sd_write_fail;      // Write failures
@@ -75,6 +76,7 @@ extern volatile uint32_t sd_dma_txrx_cplt;   // DMA TX/RX complete count
 extern volatile uint32_t sd_dma_error;       // DMA error count
 extern volatile uint8_t  sd_init_step;       // Init progress (10=success, 100+=error)
 extern volatile uint8_t  sd_cmd0_response;   // Last CMD0 response (0x01=OK, 0xFF=no response)
+#endif
 
 /* Public function prototypes ----------------------------------------- */
 /**

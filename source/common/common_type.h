@@ -14,6 +14,7 @@
 #ifndef _COMMON_TYPE_H_
 #define _COMMON_TYPE_H_
 /* Includes ----------------------------------------------------------- */
+#include "device_info.h"
 #include "stm32f4xx_hal.h"
 
 #include <stdbool.h>

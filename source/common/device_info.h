@@ -17,7 +17,7 @@
 #include "common_type.h"
 
 /* Public defines ----------------------------------------------------- */
-#define CONFIG_SD_DEBUG_MODE 1
+// #define CONFIG_SD_DEBUG_MODE
 
 /* Public enumerate/structure ----------------------------------------- */
 typedef enum

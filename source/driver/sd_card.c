@@ -126,7 +126,9 @@ uint8_t sd_card_init(void)
   uint16_t retry;
   uint8_t  buf[4];
 
+#ifdef CONFIG_SD_DEBUG_MODE
   sd_init_step = 1;  // Start init
+#endif
 
 #if SD_USE_DMA
   sd_card_init_dma_buffer();  // Initialize DMA buffers early
@@ -140,7 +142,9 @@ uint8_t sd_card_init(void)
 #endif
 #endif
 
+#ifdef CONFIG_SD_DEBUG_MODE
   sd_init_step = 2;  // DMA buffers ready
+#endif
 
   // Ensure SPI is ready for blocking operations
   hspi1.State     = HAL_SPI_STATE_READY;
@@ -151,29 +155,39 @@ uint8_t sd_card_init(void)
   SD_CARD_DISABLE_CS();
   OS_DELAY_MS(10);
 
+#ifdef CONFIG_SD_DEBUG_MODE
   sd_init_step = 3;  // SPI ready, sending dummy clocks
+#endif
 
   for (i = 0; i < 10; i++) spi_read_write(0xFF);
 
+#ifdef CONFIG_SD_DEBUG_MODE
   sd_init_step = 4;  // Sending CMD0
+#endif
 
   SD_CARD_ENABLE_CS();
   retry = 20;
   do
   {
     // Skip WaitReady for CMD0 - card may not be ready yet during init
-    res              = sd_card_send_cmd_ex(CMD0, 0, 1);
+    res = sd_card_send_cmd_ex(CMD0, 0, 1);
+#ifdef CONFIG_SD_DEBUG_MODE
     sd_cmd0_response = res;  // Store for debugging
+#endif
   } while ((res != 0x01) && retry--);
 
   if (res != 0x01)
   {
+#ifdef CONFIG_SD_DEBUG_MODE
     sd_init_step = 100;  // CMD0 failed
+#endif
     SD_CARD_DISABLE_CS();
     return SD_TYPE_ERR;
   }
 
+#ifdef CONFIG_SD_DEBUG_MODE
   sd_init_step = 5;  // CMD0 OK, checking card type
+#endif
 
   if (sd_card_cmd(CMD8, 0x1AA) == 1)
   {
@@ -228,11 +242,15 @@ uint8_t sd_card_init(void)
   if (SD_Type != SD_TYPE_ERR)
   {
     spi_set_speed(1);
+#ifdef CONFIG_SD_DEBUG_MODE
     sd_init_step = 10;  // Init complete success
+#endif
   }
   else
   {
+#ifdef CONFIG_SD_DEBUG_MODE
     sd_init_step = 101;  // Init failed - card type error
+#endif
   }
 
   return SD_Type;
@@ -300,7 +318,9 @@ uint8_t sd_card_write_block(uint8_t *buff, uint32_t sector)
   uint8_t  res;
   uint32_t tick;
 
+#ifdef CONFIG_SD_DEBUG_MODE
   sd_write_count++;
+#endif
 
   if (SD_Type != SD_TYPE_V2HC)
     sector <<= 9;
@@ -310,8 +330,10 @@ uint8_t sd_card_write_block(uint8_t *buff, uint32_t sector)
 
   if (res != 0)
   {
+#ifdef CONFIG_SD_DEBUG_MODE
     sd_write_fail++;
     sd_last_write_err = 1;  // CMD24 failed
+#endif
     SD_CARD_DISABLE_CS();
     spi_read_write(0xFF);
     return 1;
@@ -327,8 +349,10 @@ uint8_t sd_card_write_block(uint8_t *buff, uint32_t sector)
   /* Send 512 bytes via DMA */
   if (sd_card_dma_tx(buff, 512) != 0)
   {
+#ifdef CONFIG_SD_DEBUG_MODE
     sd_write_fail++;
     sd_last_write_err = 4;  // DMA error
+#endif
     SD_CARD_DISABLE_CS();
     spi_read_write(0xFF);
     return 1;
@@ -352,8 +376,10 @@ uint8_t sd_card_write_block(uint8_t *buff, uint32_t sector)
     res = spi_read_write(0xFF);
     if ((OS_GET_TICK() - tick) > 200)
     {
+#ifdef CONFIG_SD_DEBUG_MODE
       sd_write_fail++;
       sd_last_write_err = 2;  // Data response timeout
+#endif
       SD_CARD_DISABLE_CS();
       spi_read_write(0xFF);
       return 1;
@@ -362,8 +388,10 @@ uint8_t sd_card_write_block(uint8_t *buff, uint32_t sector)
 
   if ((res & 0x1F) != 0x05)
   {
+#ifdef CONFIG_SD_DEBUG_MODE
     sd_write_fail++;
     sd_last_write_err = 2;  // Data rejected
+#endif
     SD_CARD_DISABLE_CS();
     spi_read_write(0xFF);
     return 1;
@@ -375,8 +403,10 @@ uint8_t sd_card_write_block(uint8_t *buff, uint32_t sector)
   {
     if ((OS_GET_TICK() - tick) > 1000)  // 1 second for format
     {
+#ifdef CONFIG_SD_DEBUG_MODE
       sd_write_fail++;
       sd_last_write_err = 3;  // Busy timeout
+#endif
       SD_CARD_DISABLE_CS();
       spi_read_write(0xFF);
       return 1;
@@ -479,7 +509,9 @@ uint32_t sd_card_get_sector_count(void)
 // DMA Callbacks - called from HAL SPI interrupt handlers
 void sd_card_tx_rx_callback(void)
 {
+#ifdef CONFIG_SD_DEBUG_MODE
   sd_dma_txrx_cplt++;
+#endif
   sd_dma_status = SD_DMA_COMPLETE;
 #if SD_USE_DMA && defined(CONFIG_FREE_RTOS)
   if (sd_dma_sem_handle != NULL)
@@ -493,7 +525,9 @@ void sd_card_tx_rx_callback(void)
 
 void sd_card_tx_callback(void)
 {
+#ifdef CONFIG_SD_DEBUG_MODE
   sd_dma_tx_cplt++;
+#endif
   sd_dma_status = SD_DMA_COMPLETE;
 #if SD_USE_DMA && defined(CONFIG_FREE_RTOS)
   if (sd_dma_sem_handle != NULL)
@@ -507,7 +541,9 @@ void sd_card_tx_callback(void)
 
 void sd_card_rx_callback(void)
 {
+#ifdef CONFIG_SD_DEBUG_MODE
   sd_dma_rx_cplt++;
+#endif
   sd_dma_status = SD_DMA_COMPLETE;
 #if SD_USE_DMA && defined(CONFIG_FREE_RTOS)
   if (sd_dma_sem_handle != NULL)
@@ -521,7 +557,9 @@ void sd_card_rx_callback(void)
 
 void sd_card_error_callback(void)
 {
+#ifdef CONFIG_SD_DEBUG_MODE
   sd_dma_error++;
+#endif
   sd_dma_status = SD_DMA_ERROR;
 #if SD_USE_DMA && defined(CONFIG_FREE_RTOS)
   if (sd_dma_sem_handle != NULL)
