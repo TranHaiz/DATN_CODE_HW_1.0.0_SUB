@@ -18,10 +18,10 @@
 /* USER CODE END Header */
 #include "fatfs.h"
 
-uint8_t retUSER;     /* Return value for USER */
-char    USERPath[4]; /* USER logical drive path */
-FATFS   USERFatFS;   /* File system object for USER logical drive */
-FIL     USERFile;    /* File object for USER */
+uint8_t retUSER;    /* Return value for USER */
+char USERPath[4];   /* USER logical drive path */
+FATFS USERFatFS;    /* File system object for USER logical drive */
+FIL USERFile;       /* File object for USER */
 
 /* USER CODE BEGIN Variables */
 /* Single SD card - use only drive 0: */
@@ -38,10 +38,10 @@ void MX_FATFS_Init(void)
 }
 
 /**
- * @brief  Gets Time from RTC
- * @param  None
- * @retval Time in DWORD
- */
+  * @brief  Gets Time from RTC
+  * @param  None
+  * @retval Time in DWORD
+  */
 DWORD get_fattime(void)
 {
   /* USER CODE BEGIN get_fattime */
