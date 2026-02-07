@@ -36,7 +36,7 @@ typedef struct
 
 typedef struct
 {
-  FIL *fhandle;
+  FIL  fhandle;
   char fpath[FIL_MAX_PATH];
 } fil_custom_t;
 /* Public macros ------------------------------------------------------ */

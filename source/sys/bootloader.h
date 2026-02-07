@@ -14,7 +14,7 @@
 #ifndef _BOOTLOADER_H_
 #define _BOOTLOADER_H_
 /* Includes ----------------------------------------------------------- */
-#include "deivce_info.h"
+#include "device_info.h"
 #include "memory_info.h"
 #include "stm32f4xx_hal.h"
 

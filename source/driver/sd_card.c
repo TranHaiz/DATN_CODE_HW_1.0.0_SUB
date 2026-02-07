@@ -13,9 +13,18 @@
 /* Includes ----------------------------------------------------------- */
 #include "sd_card.h"
 
+#include "device_info.h"
+#include "os_lib.h"
 #include "spi.h"
 
 #include <string.h>
+
+#if SD_USE_DMA && defined(CONFIG_FREE_RTOS)
+#include "FreeRTOS.h"
+#include "cmsis_os2.h"
+#include "semphr.h"
+
+#endif
 
 /* Private defines ---------------------------------------------------- */
 /* Private enumerate/structure ---------------------------------------- */
@@ -25,22 +34,41 @@
 
 /* Public variables --------------------------------------------------- */
 extern SPI_HandleTypeDef hspi1;
+
+#ifdef CONFIG_SD_DEBUG_MODE
 // Debug variables - check in debugger
-volatile uint32_t sd_write_count    = 0;     // Total writes
-volatile uint32_t sd_write_fail     = 0;     // Write failures
-volatile uint8_t  sd_last_write_err = 0;     // 1=CMD fail, 2=response fail, 3=busy timeout, 4=DMA error
-volatile uint32_t sd_dma_tx_cplt    = 0;     // DMA TX complete count
-volatile uint32_t sd_dma_rx_cplt    = 0;     // DMA RX complete count
-volatile uint32_t sd_dma_txrx_cplt  = 0;     // DMA TX/RX complete count
-volatile uint32_t sd_dma_error      = 0;     // DMA error count
-volatile uint8_t  sd_init_step      = 0;     // Track init progress for debugging
-volatile uint8_t  sd_cmd0_response  = 0xFF;  // Last CMD0 response for debugging
+volatile uint32_t sd_write_count    = 0;  // Total writes
+volatile uint32_t sd_write_fail     = 0;  // Write failures
+volatile uint8_t  sd_last_write_err = 0;  // 1=CMD fail, 2=response fail, 3=busy timeout, 4=DMA error
+volatile uint32_t sd_dma_tx_cplt    = 0;  // DMA TX complete count
+volatile uint32_t sd_dma_rx_cplt    = 0;  // DMA RX complete count
+volatile uint32_t sd_dma_txrx_cplt  = 0;  // DMA TX/RX complete count
+volatile uint32_t sd_dma_error      = 0;  // DMA error count
+/**
+ * @brief  Track initialization progress for debugging
+ *        1: start init
+ *        2: DMA buffers ready
+ *        3: SPI ready, sending dummy clocks
+ *        4: sending CMD0
+ *        5: CMD0 OK, checking card type
+ *        10: init complete
+ *        100+: error occurred
+ */
+volatile uint8_t sd_init_step     = 0;     // Track init progress for debugging
+volatile uint8_t sd_cmd0_response = 0xFF;  // Last CMD0 response for debugging
+#endif
 
 /* Private variables -------------------------------------------------- */
 static uint8_t SD_Type = 0;
 
 // DMA status flag
 static volatile SD_DMA_Status_t sd_dma_status = SD_DMA_IDLE;
+
+#if SD_USE_DMA && defined(CONFIG_FREE_RTOS)
+// Binary semaphore for DMA completion signaling (use FreeRTOS native for ISR safety)
+static SemaphoreHandle_t sd_dma_sem_handle = NULL;
+static StaticSemaphore_t sd_dma_sem_buffer;
+#endif
 
 // DMA buffers - MUST be word-aligned for DMA
 __attribute__((aligned(4))) static uint8_t sd_dma_dummy_tx[512];  // Filled with 0xFF for receive
@@ -102,7 +130,14 @@ uint8_t sd_card_init(void)
 
 #if SD_USE_DMA
   sd_card_init_dma_buffer();  // Initialize DMA buffers early
-  // Don't call sd_card_reset_dma_spi here - DMA is already initialized properly
+
+#if defined(CONFIG_FREE_RTOS)
+  // Create binary semaphore for DMA synchronization (only once)
+  if (sd_dma_sem_handle == NULL)
+  {
+    sd_dma_sem_handle = xSemaphoreCreateBinaryStatic(&sd_dma_sem_buffer);
+  }
+#endif
 #endif
 
   sd_init_step = 2;  // DMA buffers ready
@@ -114,7 +149,7 @@ uint8_t sd_card_init(void)
 
   spi_set_speed(0);
   SD_CARD_DISABLE_CS();
-  HAL_Delay(10);
+  OS_DELAY_MS(10);
 
   sd_init_step = 3;  // SPI ready, sending dummy clocks
 
@@ -223,10 +258,10 @@ uint8_t sd_card_read_block(uint8_t *buff, uint32_t sector)
   }
 
   /* Wait for data token 0xFE with time-based timeout */
-  tick = HAL_GetTick();
+  tick = OS_GET_TICK();
   while ((spi_read_write(0xFF) != 0xFE))
   {
-    if ((HAL_GetTick() - tick) > 200)
+    if ((OS_GET_TICK() - tick) > 200)
     {
       SD_CARD_DISABLE_CS();
       spi_read_write(0xFF);
@@ -311,11 +346,11 @@ uint8_t sd_card_write_block(uint8_t *buff, uint32_t sector)
   spi_read_write(0xFF);
 
   /* Data response - wait for valid response */
-  tick = HAL_GetTick();
+  tick = OS_GET_TICK();
   do
   {
     res = spi_read_write(0xFF);
-    if ((HAL_GetTick() - tick) > 200)
+    if ((OS_GET_TICK() - tick) > 200)
     {
       sd_write_fail++;
       sd_last_write_err = 2;  // Data response timeout
@@ -335,10 +370,10 @@ uint8_t sd_card_write_block(uint8_t *buff, uint32_t sector)
   }
 
   /* Wait while card is busy (DO=0) - INCREASE for format operations */
-  tick = HAL_GetTick();
+  tick = OS_GET_TICK();
   while (spi_read_write(0xFF) == 0x00)
   {
-    if ((HAL_GetTick() - tick) > 1000)  // 1 second for format
+    if ((OS_GET_TICK() - tick) > 1000)  // 1 second for format
     {
       sd_write_fail++;
       sd_last_write_err = 3;  // Busy timeout
@@ -399,10 +434,10 @@ uint32_t sd_card_get_sector_count(void)
   }
 
   // Wait for data token with time-based timeout
-  tick = HAL_GetTick();
+  tick = OS_GET_TICK();
   while ((spi_read_write(0xFF) != 0xFE))
   {
-    if ((HAL_GetTick() - tick) > 200)
+    if ((OS_GET_TICK() - tick) > 200)
     {
       SD_CARD_DISABLE_CS();
       spi_read_write(0xFF);
@@ -446,24 +481,56 @@ void sd_card_tx_rx_callback(void)
 {
   sd_dma_txrx_cplt++;
   sd_dma_status = SD_DMA_COMPLETE;
+#if SD_USE_DMA && defined(CONFIG_FREE_RTOS)
+  if (sd_dma_sem_handle != NULL)
+  {
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+    xSemaphoreGiveFromISR(sd_dma_sem_handle, &xHigherPriorityTaskWoken);
+    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+  }
+#endif
 }
 
 void sd_card_tx_callback(void)
 {
   sd_dma_tx_cplt++;
   sd_dma_status = SD_DMA_COMPLETE;
+#if SD_USE_DMA && defined(CONFIG_FREE_RTOS)
+  if (sd_dma_sem_handle != NULL)
+  {
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+    xSemaphoreGiveFromISR(sd_dma_sem_handle, &xHigherPriorityTaskWoken);
+    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+  }
+#endif
 }
 
 void sd_card_rx_callback(void)
 {
   sd_dma_rx_cplt++;
   sd_dma_status = SD_DMA_COMPLETE;
+#if SD_USE_DMA && defined(CONFIG_FREE_RTOS)
+  if (sd_dma_sem_handle != NULL)
+  {
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+    xSemaphoreGiveFromISR(sd_dma_sem_handle, &xHigherPriorityTaskWoken);
+    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+  }
+#endif
 }
 
-void sd_card_error_callbacl(void)
+void sd_card_error_callback(void)
 {
   sd_dma_error++;
   sd_dma_status = SD_DMA_ERROR;
+#if SD_USE_DMA && defined(CONFIG_FREE_RTOS)
+  if (sd_dma_sem_handle != NULL)
+  {
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+    xSemaphoreGiveFromISR(sd_dma_sem_handle, &xHigherPriorityTaskWoken);
+    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+  }
+#endif
 }
 
 SD_DMA_Status_t sd_card_get_dma_status(void)
@@ -489,12 +556,29 @@ static void sd_card_reset_dma_spi(void)
 // Wait for DMA transfer to complete with timeout
 static uint8_t sd_card_wait_dma(uint32_t timeout_ms)
 {
+#if defined(CONFIG_FREE_RTOS)
+  // Use FreeRTOS semaphore wait - CPU can do other tasks
+  if (sd_dma_sem_handle != NULL)
+  {
+    if (xSemaphoreTake(sd_dma_sem_handle, pdMS_TO_TICKS(timeout_ms)) == pdTRUE)
+    {
+      return (sd_dma_status == SD_DMA_COMPLETE) ? 0 : 1;
+    }
+    else
+    {
+      // Timeout - reset DMA
+      sd_card_reset_dma_spi();
+      sd_dma_status = SD_DMA_ERROR;
+      return 1;
+    }
+  }
+#endif
+  // Fallback to polling (HAL only mode or semaphore not created)
   uint32_t tick = HAL_GetTick();
   while (sd_dma_status == SD_DMA_BUSY)
   {
     if ((HAL_GetTick() - tick) > timeout_ms)
     {
-      // Reset everything
       sd_card_reset_dma_spi();
       sd_dma_status = SD_DMA_ERROR;
       return 1;
@@ -580,7 +664,7 @@ static void spi_set_speed(uint8_t speed)
   // Wait for any pending operations
   while (hspi1.State != HAL_SPI_STATE_READY && hspi1.State != HAL_SPI_STATE_RESET)
   {
-    HAL_Delay(1);
+    OS_DELAY_MS(1);
   }
 
   __HAL_SPI_DISABLE(&hspi1);
@@ -618,10 +702,10 @@ static uint8_t spi_read_write(uint8_t data)
 static uint8_t sd_card_wait_ready(void)
 {
   uint32_t timeout = 500;  // 500ms timeout
-  uint32_t tick    = HAL_GetTick();
+  uint32_t tick    = OS_GET_TICK();
   uint8_t  rx;
 
-  while ((HAL_GetTick() - tick) < timeout)
+  while ((OS_GET_TICK() - tick) < timeout)
   {
     rx = spi_read_write(0xFF);
     if (rx == 0xFF)

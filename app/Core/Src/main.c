@@ -1,31 +1,35 @@
 /* USER CODE BEGIN Header */
 /**
-  ******************************************************************************
-  * @file           : main.c
-  * @brief          : Main program body
-  ******************************************************************************
-  * @attention
-  *
-  * Copyright (c) 2026 STMicroelectronics.
-  * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
-  *
-  ******************************************************************************
-  */
+ ******************************************************************************
+ * @file           : main.c
+ * @brief          : Main program body
+ ******************************************************************************
+ * @attention
+ *
+ * Copyright (c) 2026 STMicroelectronics.
+ * All rights reserved.
+ *
+ * This software is licensed under terms that can be found in the LICENSE file
+ * in the root directory of this software component.
+ * If no LICENSE file comes with this software, it is provided AS-IS.
+ *
+ ******************************************************************************
+ */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+
 #include "cmsis_os.h"
 #include "dma.h"
 #include "fatfs.h"
-#include "spi.h"
 #include "gpio.h"
+#include "spi.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "bsp_fs.h"
+#include "ff.h"
+#include "os_lib.h"
 
 /* USER CODE END Includes */
 
@@ -59,16 +63,98 @@ void MX_FREERTOS_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+#include "sd_card.h"
+
+fil_custom_t      test_file;
+status_function_t fs_ret;
+
+/* Debug variables - check in debugger */
+volatile uint8_t dbg_sd_type      = 0xFF;
+volatile FRESULT dbg_mount_result = 0xFF;
+volatile FRESULT dbg_mkdir_result = 0xFF;
+volatile FRESULT dbg_open_result  = 0xFF;
+
+/* Declare thread (global scope) - 2048 bytes stack for FatFS */
+OS_THREAD_DECLARE(FS_Test, osPriorityNormal, 2048);
+
+void test_fs(void *argument)
+{
+  /* Step 1: Test SD card hardware */
+  dbg_sd_type = sd_card_init();
+  if (dbg_sd_type == SD_TYPE_ERR)
+  {
+    // SD card init failed - check sd_init_step for details
+    for (;;)
+    {
+      osDelay(1000);
+    }
+  }
+
+  /* Step 2: Mount filesystem */
+  extern FATFS USERFatFS;
+  extern char  USERPath[];
+  dbg_mount_result = f_mount(&USERFatFS, USERPath, 1);
+
+  if (dbg_mount_result == FR_NO_FILESYSTEM)
+  {
+    // No filesystem - need to format
+    static uint8_t work_buf[4096] __attribute__((aligned(4)));
+    dbg_mount_result = f_mkfs(USERPath, FM_FAT32, 0, work_buf, sizeof(work_buf));
+    if (dbg_mount_result == FR_OK)
+    {
+      dbg_mount_result = f_mount(&USERFatFS, USERPath, 1);
+    }
+  }
+
+  if (dbg_mount_result != FR_OK)
+  {
+    // Mount failed
+    for (;;)
+    {
+      osDelay(1000);
+    }
+  }
+
+  /* Step 3: Create LOG folder */
+  dbg_mkdir_result = f_mkdir("0:/LOG");
+  if ((dbg_mkdir_result != FR_OK) && (dbg_mkdir_result != FR_EXIST))
+  {
+    for (;;)
+    {
+      osDelay(1000);
+    }
+  }
+
+  /* Step 4: Open file */
+  dbg_open_result = f_open(&test_file.fhandle, "0:/LOG/test.txt", FA_OPEN_ALWAYS | FA_READ | FA_WRITE);
+  if (dbg_open_result == FR_OK)
+  {
+    const char test_data[] = "Hello, File System!\r\n";
+    UINT       bw;
+    f_write(&test_file.fhandle, test_data, sizeof(test_data) - 1, &bw);
+    f_close(&test_file.fhandle);
+    fs_ret = STATUS_OK;
+  }
+  else
+  {
+    fs_ret = STATUS_ERROR;
+  }
+
+  /* Thread must never return - infinite loop */
+  for (;;)
+  {
+    osDelay(1000);
+  }
+}
 
 /* USER CODE END 0 */
 
 /**
-  * @brief  The application entry point.
-  * @retval int
-  */
+ * @brief  The application entry point.
+ * @retval int
+ */
 int main(void)
 {
-
   /* USER CODE BEGIN 1 */
 
   /* USER CODE END 1 */
@@ -101,6 +187,15 @@ int main(void)
   /* Init scheduler */
   osKernelInitialize();
 
+  /* Create thread (inside function) */
+  OS_THREAD_CREATE(FS_Test, test_fs);
+
+  /* Check if thread creation failed */
+  if (FS_Test_handle == NULL)
+  {
+    Error_Handler();  // Thread creation failed - not enough heap
+  }
+
   /* Call init function for freertos objects (in cmsis_os2.c) */
   MX_FREERTOS_Init();
 
@@ -111,6 +206,7 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+
   while (1)
   {
     /* USER CODE END WHILE */
@@ -121,42 +217,41 @@ int main(void)
 }
 
 /**
-  * @brief System Clock Configuration
-  * @retval None
-  */
+ * @brief System Clock Configuration
+ * @retval None
+ */
 void SystemClock_Config(void)
 {
-  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
-  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+  RCC_OscInitTypeDef RCC_OscInitStruct = { 0 };
+  RCC_ClkInitTypeDef RCC_ClkInitStruct = { 0 };
 
   /** Configure the main internal regulator output voltage
-  */
+   */
   __HAL_RCC_PWR_CLK_ENABLE();
   __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
 
   /** Initializes the RCC Oscillators according to the specified parameters
-  * in the RCC_OscInitTypeDef structure.
-  */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
-  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+   * in the RCC_OscInitTypeDef structure.
+   */
+  RCC_OscInitStruct.OscillatorType      = RCC_OSCILLATORTYPE_HSI;
+  RCC_OscInitStruct.HSIState            = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
-  RCC_OscInitStruct.PLL.PLLM = 8;
-  RCC_OscInitStruct.PLL.PLLN = 100;
-  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
-  RCC_OscInitStruct.PLL.PLLQ = 4;
+  RCC_OscInitStruct.PLL.PLLState        = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource       = RCC_PLLSOURCE_HSI;
+  RCC_OscInitStruct.PLL.PLLM            = 8;
+  RCC_OscInitStruct.PLL.PLLN            = 100;
+  RCC_OscInitStruct.PLL.PLLP            = RCC_PLLP_DIV2;
+  RCC_OscInitStruct.PLL.PLLQ            = 4;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
   }
 
   /** Initializes the CPU, AHB and APB buses clocks
-  */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+   */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
+  RCC_ClkInitStruct.SYSCLKSource   = RCC_SYSCLKSOURCE_PLLCLK;
+  RCC_ClkInitStruct.AHBCLKDivider  = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
@@ -171,19 +266,20 @@ void SystemClock_Config(void)
 /* USER CODE END 4 */
 
 /**
-  * @brief  Period elapsed callback in non blocking mode
-  * @note   This function is called  when TIM1 interrupt took place, inside
-  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
-  * a global variable "uwTick" used as application time base.
-  * @param  htim : TIM handle
-  * @retval None
-  */
+ * @brief  Period elapsed callback in non blocking mode
+ * @note   This function is called  when TIM1 interrupt took place, inside
+ * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+ * a global variable "uwTick" used as application time base.
+ * @param  htim : TIM handle
+ * @retval None
+ */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
 
   /* USER CODE END Callback 0 */
-  if (htim->Instance == TIM1) {
+  if (htim->Instance == TIM1)
+  {
     HAL_IncTick();
   }
   /* USER CODE BEGIN Callback 1 */
@@ -192,9 +288,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 }
 
 /**
-  * @brief  This function is executed in case of error occurrence.
-  * @retval None
-  */
+ * @brief  This function is executed in case of error occurrence.
+ * @retval None
+ */
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
@@ -206,14 +302,14 @@ void Error_Handler(void)
   /* USER CODE END Error_Handler_Debug */
 }
 
-#ifdef  USE_FULL_ASSERT
+#ifdef USE_FULL_ASSERT
 /**
-  * @brief  Reports the name of the source file and the source line number
-  *         where the assert_param error has occurred.
-  * @param  file: pointer to the source file name
-  * @param  line: assert_param error line source number
-  * @retval None
-  */
+ * @brief  Reports the name of the source file and the source line number
+ *         where the assert_param error has occurred.
+ * @param  file: pointer to the source file name
+ * @param  line: assert_param error line source number
+ * @retval None
+ */
 void assert_failed(uint8_t *file, uint32_t line)
 {
   /* USER CODE BEGIN 6 */

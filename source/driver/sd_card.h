@@ -48,7 +48,7 @@
  *        - 0: polling (blocking)
  *       - 1: DMA
  */
-// DMA Configuration
+// DMA Configuration - 1=Enable DMA, 0=Polling mode
 #define SD_USE_DMA     (1)
 
 /* Public enumerate/structure ----------------------------------------- */
@@ -119,7 +119,7 @@ SD_DMA_Status_t sd_card_get_dma_status(void);
 void sd_card_tx_rx_callback(void);
 void sd_card_tx_callback(void);
 void sd_card_rx_callback(void);
-void sd_card_error_callbacl(void);
+void sd_card_error_callback(void);
 
 #endif /*End file _NAME_H_*/
 

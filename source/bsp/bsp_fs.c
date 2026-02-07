@@ -27,23 +27,21 @@
 /* Private enumerate/structure ---------------------------------------- */
 /* Private macros ----------------------------------------------------- */
 /* Public variables --------------------------------------------------- */
+FIL    *g_file_handle;
+FRESULT g_fs_last_result;
+
 /* Private variables -------------------------------------------------- */
 static VolumeConfig_T volume_cfg = {
   .Volume[0]      = "0:",
   .VolumeLabel[0] = "",
   .CheckPoint[0]  = SD_CHECKPOINT_0,
-  .Volume[1]      = "1:",
-  .VolumeLabel[1] = SD_DEVICE_NAME,
-  .CheckPoint[1]  = SD_CHECKPOINT_1,
 };
 static VolumeInfo_T volume_info = {
   .FatFs          = { 0 },
   .StartSector[0] = 0,
-  .StartSector[1] = 0,
 };
 static uint8_t work[4096] __attribute__((aligned(4)));
 static FATFS   FatFs;
-static FIL     File;
 
 /* Private function prototypes ---------------------------------------- */
 
@@ -101,7 +99,7 @@ status_function_t bsp_fs_init(void)
   return STATUS_ERROR;
 }
 
-void bsp_fs_open(fil_custom_t *file, const char *path, uint8_t ops, uint8_t partNum)
+status_function_t bsp_fs_open(fil_custom_t *file, const char *path, uint8_t ops, uint8_t partNum)
 {
   uint32_t len  = strlen(path);
   uint32_t size = sizeof(file->fpath);
@@ -120,32 +118,83 @@ void bsp_fs_open(fil_custom_t *file, const char *path, uint8_t ops, uint8_t part
     strcpy(file->fpath, &path[len - size + 1]);
   }
 
-  FRESULT result = f_open(file->fhandle, pathTemp, ops);
+  FRESULT result = f_open(&file->fhandle, pathTemp, ops);
   // Handle error if needed
+  return (result == FR_OK) ? STATUS_OK : STATUS_ERROR;
+}
+
+void bsp_fs_rename(const char *oldPath, const char *newPath, uint8_t partNum)
+{
+  FRESULT result;
+  assert_param(partNum < _VOLUMES);
+
+  char pathTemp[SD_MAX_PATH];
+  bsp_fs_make_path(partNum, oldPath, pathTemp);
+
+  result = f_rename(pathTemp, newPath);
+  // Handle error if needed
+}
+
+void bsp_fs_write(fil_custom_t *fp, void *buf, uint32_t btw)
+{
+  FRESULT res   = FR_OK;
+  g_file_handle = &fp->fhandle;
+
+  uint32_t bw;
+
+  res = f_write(g_file_handle, buf, btw, &bw);
+  /**
+   * Handle error if needed
+   * if (res != FR_OK || bw != btw)
+   */
+}
+
+void bsp_fs_read(fil_custom_t *fp, void *buf, uint32_t btr)
+{
+  g_file_handle = &fp->fhandle;
+
+  uint32_t br;
+
+  g_fs_last_result = f_read(g_file_handle, buf, btr, &br);
+  /**
+   * Handle error if needed
+   * if (g_fs_last_result != FR_OK || br != btr)
+   */
+}
+
+void bsp_fs_delete(char *path, uint8_t partNum)
+{
+  assert_param(partNum < _VOLUMES);
+
+  char pathTemp[SD_MAX_PATH];
+  bsp_fs_make_path(partNum, path, pathTemp);
+
+  g_fs_last_result = f_unlink(pathTemp);
+  /**
+   * Handle error if needed
+   * if (g_fs_last_result != FR_OK)
+   */
 }
 
 /* Private definitions ----------------------------------------------- */
 static status_function_t bsp_fs_mount(void)
 {
-  // Mount SD card
-  for (uint_fast8_t i = 0; i < _VOLUMES; i++)
+  // Mount SD card - single partition, use volume 0 only
+  if (f_mount(&volume_info.FatFs[0], volume_cfg.Volume[0], 1) != FR_OK)
   {
-    if (f_mount(&volume_info.FatFs[i], volume_cfg.Volume[i], 1) != FR_OK)
-    {
-      return false;
-    }
-    else
-    {
-      char label[128];
+    return false;
+  }
+  else
+  {
+    char label[128];
 
-      f_getlabel(volume_cfg.Volume[i], label, 0);
-      label[sizeof(label) - 1] = '\0';
+    f_getlabel(volume_cfg.Volume[0], label, 0);
+    label[sizeof(label) - 1] = '\0';
 
-      if (strcmp(label, volume_cfg.VolumeLabel[i]) != 0)
-      {
-        snprintf(label, sizeof(label), "%s%s", volume_cfg.Volume[i], volume_cfg.VolumeLabel[i]);
-        f_setlabel(label);
-      }
+    if (strcmp(label, volume_cfg.VolumeLabel[0]) != 0)
+    {
+      snprintf(label, sizeof(label), "%s%s", volume_cfg.Volume[0], volume_cfg.VolumeLabel[0]);
+      f_setlabel(label);
     }
   }
 
@@ -175,14 +224,14 @@ static status_function_t bsp_fs_format(void)
 status_function_t bsp_fs_init_folders(void)
 {
   FRESULT fres;
-  // Create folders
+  // Create folders - all on volume 0
   fres = f_mkdir("0:/LOG");
   if ((fres != FR_OK) && (fres != FR_EXIST))
   {
     return STATUS_ERROR;
   }
 
-  fres = f_mkdir("1:/DATA");
+  fres = f_mkdir("0:/DATA");
   if ((fres != FR_OK) && (fres != FR_EXIST))
   {
     return STATUS_ERROR;
@@ -193,23 +242,23 @@ status_function_t bsp_fs_init_folders(void)
 
 static void bsp_fs_make_path(uint8_t partNum, const char *path, char *pathBuild)
 {
-  assert_param(partNum < _VOLUMES);
+  (void) partNum;  // Not used - only 1 volume
 
   if (path != NULL)
   {
-    if (((path[0] == (volume_cfg.Volume[0][0])) && (path[1] == volume_cfg.Volume[0][1]))
-        || ((path[0] == (volume_cfg.Volume[1][0])) && (path[1] == volume_cfg.Volume[1][1])))
+    // Check if path already has drive prefix "0:"
+    if ((path[0] == volume_cfg.Volume[0][0]) && (path[1] == volume_cfg.Volume[0][1]))
     {
       strcpy(pathBuild, path);
     }
     else
     {
-      sprintf(pathBuild, "%d:%s", partNum, path);
+      sprintf(pathBuild, "0:/%s", path);
     }
   }
   else
   {
-    sprintf(pathBuild, "%d:", partNum);
+    sprintf(pathBuild, "0:/");
   }
 }
 
