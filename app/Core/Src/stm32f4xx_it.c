@@ -20,8 +20,11 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "stm32f4xx_it.h"
+#include "main.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "bsp_uart.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -191,6 +194,32 @@ void SPI1_IRQHandler(void)
 }
 
 /**
+ * @brief This function handles USART1 global interrupt.
+ */
+void USART1_IRQHandler(void)
+{
+  /* USER CODE BEGIN USART1_IRQn 0 */
+
+  /* USER CODE END USART1_IRQn 0 */
+  HAL_UART_IRQHandler(&huart1);
+  /* USER CODE BEGIN USART1_IRQn 1 */
+  if (__HAL_UART_GET_FLAG(&huart1, UART_FLAG_IDLE))
+  {
+    bsp_uart_rx_handler(&bsp_uart1_handle);
+  }
+  // else if (__HAL_UART_GET_FLAG(&huart2, UART_FLAG_IDLE))
+  // {
+  //   bsp_uart_rx_handler(&bsp_uart2_handle);
+  // }
+  // else if (__HAL_UART_GET_FLAG(&huart3, UART_FLAG_IDLE))
+  // {
+  //   bsp_uart_rx_handler(&bsp_uart3_handle);
+  // }
+
+  /* USER CODE END USART1_IRQn 1 */
+}
+
+/**
   * @brief This function handles DMA2 stream0 global interrupt.
   */
 void DMA2_Stream0_IRQHandler(void)
@@ -216,6 +245,34 @@ void DMA2_Stream2_IRQHandler(void)
   /* USER CODE BEGIN DMA2_Stream2_IRQn 1 */
 
   /* USER CODE END DMA2_Stream2_IRQn 1 */
+}
+
+/**
+ * @brief This function handles DMA2 stream5 global interrupt.
+ */
+void DMA2_Stream5_IRQHandler(void)
+{
+  /* USER CODE BEGIN DMA2_Stream5_IRQn 0 */
+
+  /* USER CODE END DMA2_Stream5_IRQn 0 */
+  HAL_DMA_IRQHandler(&hdma_usart1_rx);
+  /* USER CODE BEGIN DMA2_Stream5_IRQn 1 */
+
+  /* USER CODE END DMA2_Stream5_IRQn 1 */
+}
+
+/**
+ * @brief This function handles DMA2 stream7 global interrupt.
+ */
+void DMA2_Stream7_IRQHandler(void)
+{
+  /* USER CODE BEGIN DMA2_Stream7_IRQn 0 */
+
+  /* USER CODE END DMA2_Stream7_IRQn 0 */
+  HAL_DMA_IRQHandler(&hdma_usart1_tx);
+  /* USER CODE BEGIN DMA2_Stream7_IRQn 1 */
+
+  /* USER CODE END DMA2_Stream7_IRQn 1 */
 }
 
 /* USER CODE BEGIN 1 */
