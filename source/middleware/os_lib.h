@@ -25,8 +25,10 @@
 #if defined(CONFIG_HAL_ONLY)
 #define OS_DELAY_MS(ms) HAL_Delay(ms)
 #elif defined(CONFIG_FREE_RTOS)  // FreeRTOS OS
-#define OS_DELAY_MS(ms) osDelay(ms)
+
+#define OS_DELAY_MS(ms) osDelay(pdMS_TO_TICKS(ms))
 #define OS_GET_TICK()   osKernelGetTickCount()
+#define OS_YIELD()      osThreadYield()
 
 /**
  * @brief  Declare thread (use at global scope, outside functions)
@@ -48,6 +50,56 @@
  * @example OS_THREAD_CREATE(FS_Task, test_fs);
  */
 #define OS_THREAD_CREATE(thread_name, func) thread_name##_handle = osThreadNew((func), NULL, &thread_name##_attr)
+
+#define OS_SEM_DEFINE_STAIC(name)                    \
+  static SemaphoreHandle_t name##_sem_handle = NULL; \
+  static StaticSemaphore_t name##_sem_buffer;
+
+#define OS_SEM_DEFINE_GLOBAL(name)            \
+  SemaphoreHandle_t name##_sem_handle = NULL; \
+  StaticSemaphore_t name##_sem_buffer;
+
+#define OS_SEM_DECLARE(name)                  \
+  extern SemaphoreHandle_t name##_sem_handle; \
+  extern StaticSemaphore_t name##_sem_buffer;
+
+#define OS_SEM_CREATE(name)                                                 \
+  do                                                                        \
+  {                                                                         \
+    if (name##_sem_handle == NULL)                                          \
+    {                                                                       \
+      name##_sem_handle = xSemaphoreCreateBinaryStatic(&name##_sem_buffer); \
+    }                                                                       \
+  } while (0)
+
+#define OS_SEM_GIVE_FROM_ISR(name)                                       \
+  do                                                                     \
+  {                                                                      \
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;                       \
+    xSemaphoreGiveFromISR(name##_sem_handle, &xHigherPriorityTaskWoken); \
+    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);                        \
+  } while (0)
+
+#define OS_SEM_GIVE(name)              \
+  do                                   \
+  {                                    \
+    xSemaphoreGive(name##_sem_handle); \
+  } while (0)
+
+#define OS_SEM_TAKE(name, timeout_ms)                             \
+  do                                                              \
+  {                                                               \
+    xSemaphoreTake(name##_sem_handle, pdMS_TO_TICKS(timeout_ms)); \
+  } while (0)
+
+#define OS_SEM_DELETE(name)              \
+  do                                     \
+  {                                      \
+    vSemaphoreDelete(name##_sem_handle); \
+    name##_sem_handle = NULL;            \
+  } while (0)
+
+#define OS_MAX_DELAY osWaitForever
 
 #elif defined(CONFIG_PTOTO_THREAD)  // lightweight protothread OS
 // Protothread delay implementation (to be defined)
