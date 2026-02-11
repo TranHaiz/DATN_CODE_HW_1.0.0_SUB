@@ -18,6 +18,8 @@
 
 /* Public defines ----------------------------------------------------- */
 // #define CONFIG_SD_DEBUG_MODE
+#define CONFIG_FIREBASE_SERVER (true)
+#define CONFIG_MQTT_SERVER     (false)
 
 /* Public enumerate/structure ----------------------------------------- */
 typedef enum

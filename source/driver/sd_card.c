@@ -611,7 +611,7 @@ static uint8_t sd_card_wait_dma(uint32_t timeout_ms)
     }
   }
 #endif
-  // Fallback to polling (HAL only mode or semaphore not created)
+  // Callback to polling (HAL only mode or semaphore not created)
   uint32_t tick = HAL_GetTick();
   while (sd_dma_status == SD_DMA_BUSY)
   {

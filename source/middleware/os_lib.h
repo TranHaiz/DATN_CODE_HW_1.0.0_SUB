@@ -24,9 +24,9 @@
 
 #if defined(CONFIG_HAL_ONLY)
 #define OS_DELAY_MS(ms) HAL_Delay(ms)
-#elif defined(CONFIG_FREE_RTOS)  // FreeRTOS OS
+#elif defined(CONFIG_FREE_RTOS)  // FreeRTOS OS, NOTE: 1 tick = 1 ms
 
-#define OS_DELAY_MS(ms) osDelay(pdMS_TO_TICKS(ms))
+#define OS_DELAY_MS(ms) osDelay(ms)
 #define OS_GET_TICK()   osKernelGetTickCount()
 #define OS_YIELD()      osThreadYield()
 
@@ -100,6 +100,7 @@
   } while (0)
 
 #define OS_MAX_DELAY osWaitForever
+#define OS_MS        pdMS_TO_TICKS(ms)
 
 #elif defined(CONFIG_PTOTO_THREAD)  // lightweight protothread OS
 // Protothread delay implementation (to be defined)
