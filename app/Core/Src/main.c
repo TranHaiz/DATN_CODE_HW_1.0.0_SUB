@@ -103,15 +103,15 @@ status_function_t g_ret = STATUS_ERROR;
 void              test_uart(void *argument)
 {
   g_ret = bsp_sim_init();
-  if (g_ret == STATUS_OK)
-  {
-    uint8_t battery_level = 25;
-
-    g_ret = bsp_sim_send_data_firebase(SIM_DATA_FIELD_BATTERY_LEVEL, &battery_level);
-  }
 
   while (1)
   {
+    if (g_ret == STATUS_OK)
+    {
+      uint8_t battery_level = rand() % 100 + 1;
+
+      g_ret = bsp_sim_send_data_firebase(SIM_DATA_FIELD_BATTERY_LEVEL, &battery_level);
+    }
     OS_DELAY_MS(1000);
   }
 }

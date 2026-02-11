@@ -53,6 +53,16 @@ status_function_t bsp_sim_init(void)
   SIM_SEND("ATE0\r\n");
   OS_DELAY_MS(50);
 
+  // Tắt các URC không cần thiết
+  bsp_sim_send_and_wait_response("AT*URCMODE=0\r\n", "OK", 1000);
+  bsp_sim_send_and_wait_response("AT+CFUN=1\r\n", "OK", 2000);
+  bsp_sim_send_and_wait_response("AT+CIURC=0\r\n", "OK", 1000);
+  bsp_sim_send_and_wait_response("AT+CNMI=0,0,0,0,0\r\n", "OK", 1000);
+  bsp_sim_send_and_wait_response("AT+CGEREP=0,0\r\n", "OK", 1000);
+  bsp_sim_send_and_wait_response("AT+CREG=0\r\n", "OK", 1000);
+  bsp_sim_send_and_wait_response("AT+CGREG=0\r\n", "OK", 1000);
+  bsp_sim_send_and_wait_response("AT+STSF=0\r\n", "OK", 1000);
+
   bsp_sim_send_and_wait_response("AT\r\n", "OK", 2000);
   bsp_sim_send_and_wait_response("AT+CPIN?\r\n", "+CPIN: READY", 2000);
   bsp_sim_send_and_wait_response("AT+CREG?\r\n", "+CREG: 0,1", 3000);
@@ -87,23 +97,24 @@ status_function_t bsp_sim_send_data_firebase(sim_data_field_t field, void *data)
   sprintf(request, "AT+HTTPDATA=%d,10000\r\n", strlen(json_data));
 
   bool res = false;
-  res      = bsp_sim_send_and_wait_response("AT+HTTPINIT\r\n", "OK", 10);
+  res      = bsp_sim_send_and_wait_response("AT+HTTPINIT\r\n", "OK", 100);
   if (res == false)
   {
     return STATUS_ERROR;
   }
-  res = bsp_sim_send_and_wait_response("AT+HTTPPARA=\"SSLCFG\",0\r\n", "OK", 10);
+  res = bsp_sim_send_and_wait_response("AT+HTTPPARA=\"SSLCFG\",0\r\n", "OK", 100);
   if (res == false)
   {
     return STATUS_ERROR;
   }
   res = bsp_sim_send_and_wait_response(
-    "AT+HTTPPARA=\"URL\",\"https://tracking-project-cf57e-default-rtdb.firebaseio.com/Device%201.json\"\r\n", "OK", 10);
+    "AT+HTTPPARA=\"URL\",\"https://tracking-project-cf57e-default-rtdb.firebaseio.com/Device%201.json\"\r\n", "OK",
+    100);
   if (res == false)
   {
     return STATUS_ERROR;
   }
-  res = bsp_sim_send_and_wait_response("AT+HTTPPARA=\"CONTENT\",\"application/json\"\r\n", "OK", 10);
+  res = bsp_sim_send_and_wait_response("AT+HTTPPARA=\"CONTENT\",\"application/json\"\r\n", "OK", 100);
   if (res == false)
   {
     return STATUS_ERROR;
@@ -119,16 +130,12 @@ status_function_t bsp_sim_send_data_firebase(sim_data_field_t field, void *data)
     return STATUS_ERROR;
   }
   res = bsp_sim_send_and_wait_response("AT+HTTPACTION=4\r\n", "+HTTPACTION: ", 15000);
+  res = bsp_sim_send_and_wait_response("AT+HTTPREAD=0,100\r\n", "}", 1000);  // Fix this after
   if (res == false)
   {
     return STATUS_ERROR;
   }
-  res = bsp_sim_send_and_wait_response("AT+HTTPREAD=0,10\r\n", "}", 1000); // Fix this after
-  if (res == false)
-  {
-    return STATUS_ERROR;
-  }
-  res = bsp_sim_send_and_wait_response("AT+HTTPTERM\r\n", "OK", 10);
+  res = bsp_sim_send_and_wait_response("AT+HTTPTERM\r\n", "OK", 100);
   if (res == false)
   {
     return STATUS_ERROR;
