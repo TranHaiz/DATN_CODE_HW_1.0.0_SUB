@@ -69,7 +69,11 @@ status_function_t bsp_sim_init(void)
   bsp_sim_send_and_wait_response("AT+CGATT?\r\n", "+CGATT: 1", 3000);
   bsp_sim_send_and_wait_response("AT+CGDCONT=1,\"IP\",\"v-internet\"\r\n", "OK", 2000);
   bsp_sim_send_and_wait_response("AT+CGACT=1,1\r\n", "OK", 3000);
-
+  bool res = bsp_sim_send_and_wait_response("AT+HTTPINIT\r\n", "OK", 2000);
+  if (res == false)
+  {
+    return STATUS_ERROR;
+  }
   return STATUS_OK;
 }
 
@@ -97,11 +101,7 @@ status_function_t bsp_sim_send_data_firebase(sim_data_field_t field, void *data)
   sprintf(request, "AT+HTTPDATA=%d,10000\r\n", strlen(json_data));
 
   bool res = false;
-  res      = bsp_sim_send_and_wait_response("AT+HTTPINIT\r\n", "OK", 100);
-  if (res == false)
-  {
-    return STATUS_ERROR;
-  }
+
   res = bsp_sim_send_and_wait_response("AT+HTTPPARA=\"SSLCFG\",0\r\n", "OK", 100);
   if (res == false)
   {
@@ -130,16 +130,12 @@ status_function_t bsp_sim_send_data_firebase(sim_data_field_t field, void *data)
     return STATUS_ERROR;
   }
   res = bsp_sim_send_and_wait_response("AT+HTTPACTION=4\r\n", "+HTTPACTION: ", 15000);
-  res = bsp_sim_send_and_wait_response("AT+HTTPREAD=0,100\r\n", "}", 1000);  // Fix this after
-  if (res == false)
-  {
-    return STATUS_ERROR;
-  }
-  res = bsp_sim_send_and_wait_response("AT+HTTPTERM\r\n", "OK", 100);
-  if (res == false)
-  {
-    return STATUS_ERROR;
-  }
+  res = bsp_sim_send_and_wait_response("AT+HTTPREAD=0,100\r\n", "}", 1000);
+  // res = bsp_sim_send_and_wait_response("AT+HTTPTERM\r\n", "OK", 100);
+  // if (res == false)
+  // {
+  //   return STATUS_ERROR;
+  // }
 
   return STATUS_OK;
 }
