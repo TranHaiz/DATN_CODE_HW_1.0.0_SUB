@@ -22,23 +22,29 @@
 
 /* Private defines ---------------------------------------------------- */
 #define SIM_SEND_CMD_RETRY (3)
+
 /* Private enumerate/structure ---------------------------------------- */
 /* Private macros ----------------------------------------------------- */
 #define SIM_SEND(data)     (bsp_uart_write(&SIM_UART_HANDLE, (data), strlen((data))))
 
 /* Public variables --------------------------------------------------- */
-static bool is_sim_rsp = false;
+uint8_t sim_raw_data[SIM_RAW_RSP_SIZE] = { 0 };
 
 /* Private variables -------------------------------------------------- */
-uint8_t           sim_rx_buffer[SIM_RX_BUFFER_SIZE];
-volatile uint16_t sim_rx_len = 0;
+static bool    is_sim_rsp = false;
+static uint8_t sim_rx_buffer[SIM_RX_BUFFER_SIZE];
 
-static uint16_t old_pos = 0;
 /* Private function prototypes ---------------------------------------- */
 /**
  * @brief  Send command and wait for specific response or timeout
  */
 static bool bsp_sim_send_and_wait_response(const char *cmd, const char *resp, uint32_t timeout);
+
+/**
+ * @brief Find raw data response from DMA RX buffer
+ */
+static status_function_t
+bsp_sim_parse_raw_data(uint8_t *source, uint16_t source_len, uint8_t *dest, uint16_t *dest_size);
 
 /**
  * @brief  SIM response callback
@@ -77,6 +83,26 @@ status_function_t bsp_sim_init(void)
   return STATUS_OK;
 }
 
+status_function_t bsp_sim_reset_http(void)
+{
+  for (uint8_t i = 0; i < SIM_SEND_CMD_RETRY; i++)
+  {
+    if (bsp_sim_send_and_wait_response("AT+HTTPTERM\r\n", "OK", 100) != STATUS_OK)
+    {
+      OS_YIELD();
+    }
+    else
+    {
+      break;
+    }
+  }
+  if (bsp_sim_send_and_wait_response("AT+HTTPTERM\r\n", "OK", 100))
+  {
+    return STATUS_ERROR;
+  }
+  return STATUS_OK;
+}
+
 status_function_t bsp_sim_send_data_firebase(firebase_data_t *data)
 {
   assert_param(data != NULL);
@@ -104,7 +130,7 @@ status_function_t bsp_sim_send_data_firebase(firebase_data_t *data)
   }
   res = bsp_sim_send_and_wait_response(
     "AT+HTTPPARA=\"URL\",\"https://tracking-project-cf57e-default-rtdb.firebaseio.com/Device%201.json\"\r\n", "OK",
-    100);
+    2000);
   if (res == false)
   {
     return STATUS_ERROR;
@@ -130,6 +156,34 @@ status_function_t bsp_sim_send_data_firebase(firebase_data_t *data)
   return STATUS_OK;
 }
 
+status_function_t bsp_sim_get_raw_data_firebase(uint8_t *raw_data_buffer, uint16_t *size)
+{
+  assert_param(raw_data_buffer != NULL);
+  bool res = false;
+
+  res = bsp_sim_send_and_wait_response("AT+HTTPPARA=\"SSLCFG\",0\r\n", "OK", 100);
+  res = bsp_sim_send_and_wait_response(
+    "AT+HTTPPARA=\"URL\",\"https://tracking-project-cf57e-default-rtdb.firebaseio.com/Device%201.json\"\r\n", "OK",
+    2000);
+
+  res = bsp_sim_send_and_wait_response("AT+HTTPACTION=0\r\n", "+HTTPACTION: ", 15000);
+  if (res == false)
+  {
+    return STATUS_ERROR;
+  }
+
+  res = bsp_sim_send_and_wait_response("AT+HTTPREAD=0,500\r\n", "{", 15000);
+  if (res == false)
+  {
+    return STATUS_ERROR;
+  }
+
+  // Copy response data to output buffer
+  bsp_sim_parse_raw_data(sim_rx_buffer, SIM_RX_BUFFER_SIZE, raw_data_buffer, size);
+
+  return STATUS_OK;
+}
+
 /* Private definitions ----------------------------------------------- */
 static bool bsp_sim_send_and_wait_response(const char *cmd, const char *resp, uint32_t timeout)
 {
@@ -148,6 +202,56 @@ static bool bsp_sim_send_and_wait_response(const char *cmd, const char *resp, ui
     OS_YIELD();
   }
   return false;
+}
+
+static status_function_t
+bsp_sim_parse_raw_data(uint8_t *source, uint16_t source_len, uint8_t *dest, uint16_t *dest_size)
+{
+  bool    is_found = false;
+  uint8_t start    = 0;
+  for (uint8_t i = 0; i < source_len; i++)
+  {
+    if (source[i] == '{')
+    {
+      is_found = true;
+      start    = i;
+      break;
+    }
+  }
+
+  if (!is_found)
+  {
+    return STATUS_ERROR;
+  }
+
+  // Find ending '}'
+  uint8_t end           = 0;
+  is_found              = false;
+  uint8_t remaining_len = source_len - start + 1;
+  for (uint8_t i = 0; i < remaining_len; i++)
+  {
+    if (source[i] == '}')
+    {
+      is_found = true;
+      end      = i;
+      break;
+    }
+  }
+
+  // Not found '}'
+  if (!is_found)
+  {
+    return STATUS_ERROR;
+  }
+
+  // Calculate length both '{' and '}'
+  uint8_t length = (end - start) + 1;
+
+  memcpy(dest, &source[start], length);
+  dest[length] = '\0';
+  *dest_size   = length;
+
+  return STATUS_OK;
 }
 
 static void bsp_sim_rsp_callback(void)

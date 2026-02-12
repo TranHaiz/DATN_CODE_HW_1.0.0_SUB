@@ -29,6 +29,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "FreeRTOS.h"
+#include "bsp_error.h"
 #include "bsp_fs.h"
 #include "bsp_sim.h"
 #include "bsp_uart.h"
@@ -58,7 +59,10 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-uint8_t uart1_rx_buff[UART_RX_BUFF_SIZE];
+uint8_t           uart1_rx_buff[UART_RX_BUFF_SIZE];
+status_function_t g_ret         = STATUS_ERROR;
+uint8_t           g_buffer[256] = { 0 };
+uint16_t          g_data_len    = 0;
 
 /* USER CODE END PV */
 
@@ -99,23 +103,25 @@ void uart_rx_callback(void)
   BSP_UART_RX_RESET(&bsp_uart1_handle);
 }
 
-status_function_t g_ret = STATUS_ERROR;
-void              test_uart(void *argument)
+void test_uart(void *argument)
 {
   g_ret = bsp_sim_init();
 
   while (1)
   {
-    if (g_ret == STATUS_OK)
+    if (g_ret != STATUS_OK)
     {
-      firebase_data_t data_firebase_test    = { 0 };
-      data_firebase_test.batt_level         = rand() % 100 + 1;
-      data_firebase_test.position.latitude  = (float) (rand() % 18000) / 100.0f - 90.0f;   // -90.0 to +90.0
-      data_firebase_test.position.longitude = (float) (rand() % 36000) / 100.0f - 180.0f;  // -180.0 to +180.0
-      data_firebase_test.speed              = (float) (rand() % 2000) / 10.0f;             // 0.0 to 200.0
-
-      g_ret = bsp_sim_send_data_firebase(&data_firebase_test);
+      bsp_error_handler(BSP_ERROR_SIM_GET_DATA_FIREBASE);
     }
+    firebase_data_t data_firebase_test    = { 0 };
+    data_firebase_test.batt_level         = rand() % 100 + 1;
+    data_firebase_test.position.latitude  = (float) (rand() % 18000) / 100.0f - 90.0f;   // -90.0 to +90.0
+    data_firebase_test.position.longitude = (float) (rand() % 36000) / 100.0f - 180.0f;  // -180.0 to +180.0
+    data_firebase_test.speed              = (float) (rand() % 2000) / 10.0f;             // 0.0 to 200.0
+
+    g_ret = bsp_sim_send_data_firebase(&data_firebase_test);
+    g_ret = bsp_sim_get_raw_data_firebase(g_buffer, &g_data_len);
+
     OS_DELAY_MS(1000);
   }
 }
