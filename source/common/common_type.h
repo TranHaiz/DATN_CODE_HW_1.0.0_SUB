@@ -33,9 +33,32 @@ typedef enum
   STATUS_TIMEOUT
 } status_function_t;
 
+typedef enum
+{
+  BATTERY_LEVEL = 0,
+  GPS_POSITION,
+  SPEED,
+  FIREBASE_DATA_TYPE_MAX
+} firebase_data_type_t;
+
+typedef struct
+{
+  float latitude;
+  float longitude;
+} gps_position_type_t;
+
+typedef struct
+{
+  uint8_t             batt_level;
+  float               speed;
+  gps_position_type_t position;
+} firebase_data_t;
+
 /* Public macros ------------------------------------------------------ */
 #define STRING2NUMBER(x) #x
 /* Public variables --------------------------------------------------- */
+extern char *FIREBASE_COMP_ID[FIREBASE_DATA_TYPE_MAX];
+
 /* Public function prototypes ----------------------------------------- */
 
 #endif /*End file _COMMON_TYPE_H_*/

@@ -77,28 +77,23 @@ status_function_t bsp_sim_init(void)
   return STATUS_OK;
 }
 
-status_function_t bsp_sim_send_data_firebase(sim_data_field_t field, void *data)
+status_function_t bsp_sim_send_data_firebase(firebase_data_t *data)
 {
-  char request[64]    = { 0 };
+  assert_param(data != NULL);
+
   char json_data[128] = { 0 };
+  // clang-format off
+  sprintf(json_data,
+          "{\"Battery level\":\"%d\",\"Position\":\"%.6f,%.6f\",\"Speed\":\"%.2f\"}",
+          data->batt_level,
+          data->position.latitude,
+          data->position.longitude,
+          data->speed);
+  // clang-format on
+  uint8_t data_len = strlen(json_data);
 
-  switch (field)
-  {
-  case SIM_DATA_FIELD_BATTERY_LEVEL:
-    uint8_t *battery_level = (uint8_t *) data;
-    sprintf(json_data, "{\"Battery level\":\"%d\"}", *battery_level);
-    break;
-
-  case SIM_DATA_FIELD_POSITION:
-    // Do nothing
-    break;
-
-  default:
-    // Case fail
-    return STATUS_ERROR;
-  }
-
-  sprintf(request, "AT+HTTPDATA=%d,10000\r\n", strlen(json_data));
+  char request[64] = { 0 };
+  sprintf(request, "AT+HTTPDATA=%d,10000\r\n", data_len);
 
   bool res = false;
 
@@ -131,11 +126,6 @@ status_function_t bsp_sim_send_data_firebase(sim_data_field_t field, void *data)
   }
   res = bsp_sim_send_and_wait_response("AT+HTTPACTION=4\r\n", "+HTTPACTION: ", 15000);
   res = bsp_sim_send_and_wait_response("AT+HTTPREAD=0,100\r\n", "}", 1000);
-  // res = bsp_sim_send_and_wait_response("AT+HTTPTERM\r\n", "OK", 100);
-  // if (res == false)
-  // {
-  //   return STATUS_ERROR;
-  // }
 
   return STATUS_OK;
 }

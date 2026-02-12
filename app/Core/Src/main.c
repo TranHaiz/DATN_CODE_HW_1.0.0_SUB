@@ -108,9 +108,13 @@ void              test_uart(void *argument)
   {
     if (g_ret == STATUS_OK)
     {
-      uint8_t battery_level = rand() % 100 + 1;
+      firebase_data_t data_firebase_test    = { 0 };
+      data_firebase_test.batt_level         = rand() % 100 + 1;
+      data_firebase_test.position.latitude  = (float) (rand() % 18000) / 100.0f - 90.0f;   // -90.0 to +90.0
+      data_firebase_test.position.longitude = (float) (rand() % 36000) / 100.0f - 180.0f;  // -180.0 to +180.0
+      data_firebase_test.speed              = (float) (rand() % 2000) / 10.0f;             // 0.0 to 200.0
 
-      g_ret = bsp_sim_send_data_firebase(SIM_DATA_FIELD_BATTERY_LEVEL, &battery_level);
+      g_ret = bsp_sim_send_data_firebase(&data_firebase_test);
     }
     OS_DELAY_MS(1000);
   }

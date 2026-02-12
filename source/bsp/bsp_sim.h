@@ -48,7 +48,7 @@ extern volatile uint16_t sim_rx_len;
 status_function_t bsp_sim_init(void);
 
 #if (CONFIG_FIREBASE_SERVER == true)
-status_function_t bsp_sim_send_data_firebase(sim_data_field_t field, void *data);
+status_function_t bsp_sim_send_data_firebase(firebase_data_t *data);
 
 #elif (CONFIG_MQTT_SERVER == true)
 // Not implemented yet
