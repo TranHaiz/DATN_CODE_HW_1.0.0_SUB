@@ -20,7 +20,7 @@
  *  as shown here:
 bool STM32TouchController::sampleTouch(int32_t& x, int32_t& y)
 {
-	return ((bool) Touch_TouchGFXSampleTouch(&x, &y));
+  return ((bool) Touch_TouchGFXSampleTouch(&x, &y));
 }
  *
  *  see also z_displ_ili9XXX.h
@@ -29,7 +29,6 @@ bool STM32TouchController::sampleTouch(int32_t& x, int32_t& y)
 #ifndef __XPT2046_H
 #define __XPT2046_H
 
-
 /*||||||||||| USER/PROJECT PARAMETERS |||||||||||*/
 
 /*****************     STEP 1      *****************
@@ -37,9 +36,8 @@ bool STM32TouchController::sampleTouch(int32_t& x, int32_t& y)
  ** properly set the below the 2 defines to address
  ********  the SPI port defined on CubeMX *********/
 
-#define TOUCH_SPI_PORT 	hspi2
-#define TOUCH_SPI 		SPI2
-
+#define TOUCH_SPI_PORT      hspi2
+#define TOUCH_SPI           SPI2
 
 /*****************     STEP 2      *****************
  **********   KEY REPEAT FOR TOUCHGFX   ***********
@@ -55,9 +53,6 @@ bool STM32TouchController::sampleTouch(int32_t& x, int32_t& y)
 
 /*|||||||| END OF USER/PROJECT PARAMETERS ||||||||*/
 
-
-
-
 /*|||||||||||||| DEVICE PARAMETERS |||||||||||||||||*/
 /* you should need to change nothing from here on */
 
@@ -65,10 +60,9 @@ bool STM32TouchController::sampleTouch(int32_t& x, int32_t& y)
  * this is the command to send to XPT2046 asking to
  * poll axis and return corresponging value.
  ****************************************	**********/
-#define X_AXIS		0xD0
-#define Y_AXIS		0x90
-#define Z_AXIS		0xB0
-
+#define X_AXIS              0xD0
+#define Y_AXIS              0x90
+#define Z_AXIS              0xB0
 
 /**********************************************************************************
  *	polling XPT2046 axis, the returning value exceeding the below limit
@@ -77,14 +71,13 @@ bool STM32TouchController::sampleTouch(int32_t& x, int32_t& y)
  *	eadings must be performed to confirm a touch
  **********************************************************************************/
 #ifdef ILI9341
-#define X_THRESHOLD		0x0200	//below threeshold there is no touch
-#define Z_THRESHOLD		0x0200	//below threeshold there is no touch
+#define X_THRESHOLD 0x0200  // below threeshold there is no touch
+#define Z_THRESHOLD 0x0200  // below threeshold there is no touch
 #endif
 #ifdef ILI9488
-#define X_THRESHOLD		0x0500	//below threeshold there is no touch
-#define Z_THRESHOLD		0x0500	//below threeshold there is no touch
+#define X_THRESHOLD 0x0500  // below threeshold there is no touch
+#define Z_THRESHOLD 0x0500  // below threeshold there is no touch
 #endif
-
 
 /**********************************************************************************
  ***************************** CALIBRATION PARAMETERS *****************************
@@ -121,9 +114,6 @@ bool STM32TouchController::sampleTouch(int32_t& x, int32_t& y)
 #define BY -41.38f
 #endif
 
-
-
-
 /**********************************************************************************
  * parameters screen/touch orientation: set the touch orientation to the corresponding
  * screen orientation:
@@ -132,42 +122,40 @@ bool STM32TouchController::sampleTouch(int32_t& x, int32_t& y)
  * set also the size of a 0° row and a 90° row (a 0° height)
  **********************************************************************************/
 #ifdef T_ROTATION_0
-#define TOUCH0 			Displ_Orientat_0
-#define TOUCH90 		Displ_Orientat_90
-#define TOUCH180 		Displ_Orientat_180
-#define TOUCH270 		Displ_Orientat_270
-#define TOUCH_0_WIDTH 	DISPL_WIDTH
-#define TOUCH_0_HEIGHT	DISPL_HEIGHT
+#define TOUCH0         Displ_Orientat_0
+#define TOUCH90        Displ_Orientat_90
+#define TOUCH180       Displ_Orientat_180
+#define TOUCH270       Displ_Orientat_270
+#define TOUCH_0_WIDTH  DISPL_WIDTH
+#define TOUCH_0_HEIGHT DISPL_HEIGHT
 #endif
 
 #ifdef T_ROTATION_90
-#define TOUCH0 			Displ_Orientat_90
-#define TOUCH90 		Displ_Orientat_180
-#define TOUCH180 		Displ_Orientat_270
-#define TOUCH270 		Displ_Orientat_0
-#define TOUCH_0_WIDTH 	DISPL_HEIGHT
-#define TOUCH_0_HEIGHT	DISPL_WIDTH
+#define TOUCH0         Displ_Orientat_90
+#define TOUCH90        Displ_Orientat_180
+#define TOUCH180       Displ_Orientat_270
+#define TOUCH270       Displ_Orientat_0
+#define TOUCH_0_WIDTH  DISPL_HEIGHT
+#define TOUCH_0_HEIGHT DISPL_WIDTH
 #endif
 
 #ifdef T_ROTATION_180
-#define TOUCH0 			Displ_Orientat_180
-#define TOUCH90 		Displ_Orientat_270
-#define TOUCH180 		Displ_Orientat_0
-#define TOUCH270 		Displ_Orientat_90
-#define TOUCH_0_WIDTH 	DISPL_WIDTH
-#define TOUCH_0_HEIGHT	DISPL_HEIGHT
+#define TOUCH0         Displ_Orientat_180
+#define TOUCH90        Displ_Orientat_270
+#define TOUCH180       Displ_Orientat_0
+#define TOUCH270       Displ_Orientat_90
+#define TOUCH_0_WIDTH  DISPL_WIDTH
+#define TOUCH_0_HEIGHT DISPL_HEIGHT
 #endif
 
 #ifdef T_ROTATION_270
-#define TOUCH0 			Displ_Orientat_270
-#define TOUCH90 		Displ_Orientat_0
-#define TOUCH180 		Displ_Orientat_90
-#define TOUCH270 		Displ_Orientat_180
-#define TOUCH_0_WIDTH 	DISPL_HEIGHT
-#define TOUCH_0_HEIGHT	DISPL_WIDTH
+#define TOUCH0         Displ_Orientat_270
+#define TOUCH90        Displ_Orientat_0
+#define TOUCH180       Displ_Orientat_90
+#define TOUCH270       Displ_Orientat_180
+#define TOUCH_0_WIDTH  DISPL_HEIGHT
+#define TOUCH_0_HEIGHT DISPL_WIDTH
 #endif
-
-
 
 /*|||||||||||||| INTERFACE PARAMETERS |||||||||||||||||*/
 
@@ -176,34 +164,32 @@ bool STM32TouchController::sampleTouch(int32_t& x, int32_t& y)
  * Touch_GotATouch(), helping in using dragging widgets like scrolling lists
  * You can try to change the below parameters only if your display looses quality or over-used
  **********************************************************************************/
-#define TOUCHGFX_TIMING 60		//delay between 2 consecutive Touch_GotATouch(2)readings		(0=disabled)
-#define TOUCHGFX_SENSITIVITY 1  //square of X pixels size having the same value					(1 disabled)
-#define TOUCHGFX_MOVAVG 1		//makes position based on average of the last X readings		(1 disabled)
-#define TOUCHGFX_REPEAT_IT 0	// after a long touch (dragging) repeat X times last position	(0=disabled)
-#if DELAY_TO_KEY_REPEAT==-1
-#define TOUCHGFX_REPEAT_NO 0	// after a REPEAT_IT repeat X times a no touch					(0=disabled)
+#define TOUCHGFX_TIMING      60  // delay between 2 consecutive Touch_GotATouch(2)readings		(0=disabled)
+#define TOUCHGFX_SENSITIVITY 1   // square of X pixels size having the same value					(1 disabled)
+#define TOUCHGFX_MOVAVG      1   // makes position based on average of the last X readings		(1 disabled)
+#define TOUCHGFX_REPEAT_IT   0   // after a long touch (dragging) repeat X times last position	(0=disabled)
+#if DELAY_TO_KEY_REPEAT == -1
+#define TOUCHGFX_REPEAT_NO 0  // after a REPEAT_IT repeat X times a no touch					(0=disabled)
 #else
-#define TOUCHGFX_REPEAT_NO 5	// after a REPEAT_IT repeat X times a no touch					(0=disabled)
+#define TOUCHGFX_REPEAT_NO 5  // after a REPEAT_IT repeat X times a no touch					(0=disabled)
 #endif
 
 /*||||||||||| END OF INTERFACE PARAMETERS ||||||||||||*/
-
 
 /*|||||||||||||| FUNCTION DECLARATIONS |||||||||||||||||*/
 
 void HAL_GPIO_EXTI_Falling_Callback(uint16_t GPIO_Pin);
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin);
 
-uint8_t Touch_In_XY_area(uint16_t xpos,uint16_t ypos,uint16_t width,uint16_t height);
+uint8_t Touch_In_XY_area(uint16_t xpos, uint16_t ypos, uint16_t width, uint16_t height);
 uint8_t Touch_GotATouch(uint8_t reset);
 uint8_t Touch_WaitForUntouch(uint16_t delay);
 uint8_t Touch_WaitForTouch(uint16_t delay);
 uint8_t Touch_PollTouch();
-void Touch_GetXYtouch(uint16_t *x, uint16_t *y, uint8_t *isTouch);
+void    Touch_GetXYtouch(uint16_t *x, uint16_t *y, uint8_t *isTouch);
 
 #ifdef DISPLAY_USING_TOUCHGFX
 uint8_t Touch_TouchGFXSampleTouch(int32_t *x, int32_t *y);
 #endif /* DISPLAY_USING_TOUCHGFX */
 
 #endif /* __XPT2046_H */
-
