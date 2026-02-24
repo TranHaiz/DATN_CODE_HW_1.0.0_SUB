@@ -11,7 +11,11 @@
  *
  */
 
+#include "z_touch_XPT2046.h"
+
+#include "cmsis_os2.h"
 #include "main.h"
+#include "z_touch_XPT2046.h"
 
 extern SPI_HandleTypeDef TOUCH_SPI_PORT;
 volatile extern uint8_t  Displ_SpiAvailable;  // 0 if SPI is busy or 1 if it is free (transm cplt)
@@ -324,6 +328,110 @@ uint8_t Touch_GotATouch(uint8_t reset)
   if (reset == 1)
     Touch_PenDown = 0;
   return result;
+}
+
+/* ===== RTOS-friendly DMA-based APIs ===== */
+
+static touch_config_t touch_cfg_local;
+
+/**
+ * Initialize touch wrapper. Creates DMA semaphore and registers it with display module.
+ */
+void touch_init(touch_config_t *cfg)
+{
+  if (cfg == NULL)
+    return;
+  touch_cfg_local = *cfg;  // copy config (no dynamic alloc)
+  /* create binary semaphore with initial count 0 using os_lib */
+  OS_SEM_CREATE(TOUCH_DMA);
+}
+
+/** Return interrupt-driven touch state */
+bool touch_is_pressed(void)
+{
+  return (bool) Touch_PenDown;
+}
+
+/**
+ * Read raw X and Y values using full-duplex DMA transfers.
+ * Uses shared mutex to protect SPI bus and a semaphore to wait for DMA completion.
+ */
+bool touch_read_raw(uint16_t *x, uint16_t *y)
+{
+  if (x == NULL || y == NULL)
+    return false;
+  uint8_t tx[3];
+  uint8_t rx[3];
+
+  /* Acquire SPI mutex if provided */
+  if (touch_cfg_local.spi_mutex != NULL)
+  {
+    OS_MUTEX_ACQUIRE(touch_cfg_local.spi_mutex, osWaitForever);
+  }
+
+  /* Ensure touch CS selected */
+  Touch_Select();
+
+  /* Read X (command 0x90 typical for X channel) */
+  tx[0] = 0x90;
+  tx[1] = 0;
+  tx[2] = 0;
+  if (HAL_SPI_TransmitReceive_DMA(touch_cfg_local.hspi, tx, rx, 3) != HAL_OK)
+  {
+    Touch_UnSelect();
+    if (touch_cfg_local.spi_mutex != NULL)
+      OS_MUTEX_RELEASE(touch_cfg_local.spi_mutex);
+    return false;
+  }
+  /* wait for completion (100ms) using os_lib */
+  OS_SEM_TAKE(TOUCH_DMA, 100);
+  uint16_t rawx = ((rx[1] << 8) | rx[2]) >> 3; /* 12-bit value */
+
+  /* Read Y (command 0xD0 typical for Y channel) */
+  tx[0] = 0xD0;
+  tx[1] = 0;
+  tx[2] = 0;
+  if (HAL_SPI_TransmitReceive_DMA(touch_cfg_local.hspi, tx, rx, 3) != HAL_OK)
+  {
+    Touch_UnSelect();
+    if (touch_cfg_local.spi_mutex != NULL)
+      OS_MUTEX_RELEASE(touch_cfg_local.spi_mutex);
+    return false;
+  }
+  OS_SEM_TAKE(TOUCH_DMA, 100);
+  uint16_t rawy = ((rx[1] << 8) | rx[2]) >> 3; /* 12-bit value */
+
+  Touch_UnSelect();
+  if (touch_cfg_local.spi_mutex != NULL)
+    OS_MUTEX_RELEASE(touch_cfg_local.spi_mutex);
+
+  *x = rawx;
+  *y = rawy;
+  return true;
+}
+
+/** Apply linear calibration to raw readings */
+bool touch_read_calibrated(uint16_t *x, uint16_t *y)
+{
+  uint16_t rx, ry;
+  if (!touch_read_raw(&rx, &ry))
+    return false;
+  if (touch_cfg_local.ax == 0 && touch_cfg_local.ay == 0)
+  {
+    /* no calibration parameters provided */
+    *x = rx;
+    *y = ry;
+    return true;
+  }
+  int32_t calx = (touch_cfg_local.ax * (int32_t) rx) + touch_cfg_local.bx;
+  int32_t caly = (touch_cfg_local.ay * (int32_t) ry) + touch_cfg_local.by;
+  if (calx < 0)
+    calx = 0;
+  if (caly < 0)
+    caly = 0;
+  *x = (uint16_t) calx;
+  *y = (uint16_t) caly;
+  return true;
 }
 
 #ifdef DISPLAY_USING_TOUCHGFX

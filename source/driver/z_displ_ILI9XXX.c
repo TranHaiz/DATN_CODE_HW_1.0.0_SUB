@@ -11,7 +11,12 @@
  *
  */
 
-#include "main.h"
+#include "z_displ_ILI9XXX.h"
+
+#include "fonts.h"
+#include "os_lib.h"
+#include "spi.h"
+#include "z_touch_XPT2046.h"
 
 extern SPI_HandleTypeDef DISPL_SPI_PORT;
 
@@ -57,6 +62,11 @@ void Displ_Select(void)
       HAL_GPIO_WritePin(DISPL_CS_GPIO_Port, DISPL_CS_Pin, GPIO_PIN_RESET);  // select display
     }
   }
+}
+
+void DisplayDriver_TransferCompleteCallback(void)
+{
+  // Do nothing now
 }
 
 /**************************
@@ -339,6 +349,91 @@ void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi)
   }
 }
 
+/* Global semaphores for DMA completion implemented using os_lib semaphore helpers */
+OS_SEM_DEFINE_GLOBAL(DISPL_DMA);
+OS_SEM_DEFINE_GLOBAL(TOUCH_DMA);
+
+/**
+ * HAL callback for full-duplex DMA transfers (used by touch ADC read sequence).
+ */
+void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi)
+{
+  if (hspi == &DISPL_SPI_PORT)
+  {
+    /* If display ever uses full-duplex DMA, signal via DISPL_DMA */
+    OS_SEM_GIVE_FROM_ISR(DISPL_DMA);
+  }
+  else
+  {
+    /* touch device typically uses TxRx; signal TOUCH_DMA semaphore */
+    OS_SEM_GIVE_FROM_ISR(TOUCH_DMA);
+  }
+}
+
+/* ===== High-level RTOS-friendly API implementation ===== */
+
+static displ_config_t displ_cfg_local;
+
+void displ_init(displ_config_t *cfg)
+{
+  if (cfg == NULL)
+    return;
+  displ_cfg_local = *cfg; /* copy config */
+  /* create DMA completion semaphore (initial count 0) using os_lib */
+  OS_SEM_CREATE(DISPL_DMA);
+
+  /* Initialize hardware using legacy init (keeps previous behavior) */
+  Displ_Init(Displ_Orientat_0);
+}
+
+void displ_set_window(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
+{
+  Displ_SetAddressWindow(x0, y0, x1, y1);
+}
+
+void displ_write_pixels(uint16_t *data, uint32_t count)
+{
+  if (data == NULL || count == 0)
+    return;
+
+  uint32_t bytes = count * 2;
+
+  /* Acquire SPI mutex if provided */
+  if (displ_cfg_local.spi_mutex != NULL)
+    OS_MUTEX_ACQUIRE(displ_cfg_local.spi_mutex, osWaitForever);
+
+  /* make sure CS and DC are set for data */
+  HAL_GPIO_WritePin(DISPL_CS_GPIO_Port, DISPL_CS_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(DISPL_DC_GPIO_Port, DISPL_DC_Pin, SPI_DATA);
+
+  /* start DMA transfer */
+  if (HAL_SPI_Transmit_DMA(displ_cfg_local.hspi, (uint8_t *) data, bytes) == HAL_OK)
+  {
+    /* wait up to 100ms */
+    /* wait up to 100ms using os_lib semaphore wrapper */
+    OS_SEM_TAKE(DISPL_DMA, 100);
+  }
+
+  /* unselect */
+  HAL_GPIO_WritePin(DISPL_CS_GPIO_Port, DISPL_CS_Pin, GPIO_PIN_SET);
+
+  if (displ_cfg_local.spi_mutex != NULL)
+    OS_MUTEX_RELEASE(displ_cfg_local.spi_mutex);
+}
+
+void displ_fill_rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color)
+{
+  /* Use legacy fast path */
+  Displ_FillArea(x, y, w, h, color);
+}
+
+void displ_draw_string(uint16_t x, uint16_t y, const char *str, uint16_t color)
+{
+  /* Use existing font and printing routine with font16 as default */
+  extern sFONT Font16; /* rely on existing fonts in project */
+  Displ_WString(x, y, str, Font16, 1, color, BLACK);
+}
+
 /*****************************
  * @brief	fill a rectangle with a color
  * @param	x, y	top left corner of the rectangle
@@ -464,13 +559,13 @@ void Displ_DrawImage(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint8_t *da
     data -= EXT_FLASH_BASEADDRESS;
     while (size > SIZEBUF)
     {
-      Flash_Read((uint32_t) data, dispBuffer, SIZEBUF);
+      // Flash_Read((uint32_t) data, dispBuffer, SIZEBUF);
       Displ_WriteData(dispBuffer, SIZEBUF, 0);
       data += SIZEBUF;
       size -= SIZEBUF;
       dispBuffer = (dispBuffer == dispBuffer1 ? dispBuffer2 : dispBuffer1);  // swapping buffer
     }
-    Flash_Read((uint32_t) data, dispBuffer, size);
+    // Flash_Read((uint32_t) data, dispBuffer, size);
     data = dispBuffer;
   }
 #endif

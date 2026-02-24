@@ -33,6 +33,9 @@
 #ifndef __Z_DISPL_ILI9XXX_H
 #define __Z_DISPL_ILI9XXX_H
 
+#include "fonts.h"
+#include "spi.h"
+
 /*||||||||||| USER/PROJECT PARAMETERS |||||||||||*/
 
 /******************    STEP 0    ******************
@@ -42,7 +45,8 @@
  ***** If external flash handled by TOUCHGFX,******
  ************* let #define commented **************
  **************************************************/
-#define EXT_FLASH_BASEADDRESS 0X90000000  // mapped flash base address
+#define EXT_FLASH_BASEADDRESS 0x90000000  // mapped flash base address
+#define EXT_FLASH_SIZE        0           // Now not used
 
 /*****************     STEP 1      *****************
  ************ Enable TouchGFX interface ************
@@ -56,15 +60,27 @@
  *************************************************/
 // #define ILI9341
 // #define ILI9488_V1
-#define ILI9488_V2
+#define ILI9341
 
 /******************    STEP 3    ******************
  **************** PORT PARAMETERS *****************
  ** properly set the below th 2 defines to address
  ********  the SPI port defined on CubeMX *********
  **************************************************/
-#define DISPL_SPI_PORT  hspi2
-#define DISPL_SPI       SPI2
+#define DISPL_SPI_PORT      hspi1
+#define DISPL_SPI           SPI1
+#define DISPL_CS_GPIO_Port  GPIOA
+#define DISPL_CS_Pin        GPIO_PIN_4
+#define TOUCH_CS_GPIO_Port  GPIOB
+#define TOUCH_CS_Pin        GPIO_PIN_0
+#define DISPL_DC_GPIO_Port  GPIOB
+#define DISPL_DC_Pin        GPIO_PIN_1
+#define DISPL_LED_GPIO_Port GPIOB
+#define DISPL_LED_Pin       GPIO_PIN_2
+#define DISPL_RST_GPIO_Port GPIOB
+#define DISPL_RST_Pin       GPIO_PIN_10
+#define TOUCH_INT_Pin       GPIO_PIN_11
+#define TOUCH_INT_EXTI_IRQn EXTI15_10_IRQn
 
 /******************    STEP 4     ******************
  ***************** SPI PORT SPEED  *****************
@@ -72,8 +88,8 @@
  * when transferring data to/from DISPLAY or TOUCH
  * Keep in mind that Touch SPI Baudrate should be no more than 1 Mbps
  ***************************************************/
-#define DISPL_PRESCALER SPI_BAUDRATEPRESCALER_4    // prescaler assigned to display SPI port
-#define TOUCH_PRESCALER SPI_BAUDRATEPRESCALER_256  // prescaler assigned to touch device SPI port
+#define DISPL_PRESCALER     SPI_BAUDRATEPRESCALER_4    // prescaler assigned to display SPI port
+#define TOUCH_PRESCALER     SPI_BAUDRATEPRESCALER_256  // prescaler assigned to touch device SPI port
 
 /*****************     STEP 5      *****************
  ************* SPI COMMUNICATION MODE **************
@@ -188,6 +204,7 @@
 #define DISPL_DMA_CUTOFF 20  // (bytes) used only in DMA_MODE
 
 /*||||||||||| END OF DEVICE PARAMETERS ||||||||||||*/
+#include "os_lib.h"
 
 #include <string.h>
 
@@ -322,8 +339,48 @@ uint32_t Displ_BackLight(uint8_t cmd);
 #ifdef DISPLAY_USING_TOUCHGFX
 int         touchgfxDisplayDriverTransmitActive();
 void        touchgfxDisplayDriverTransmitBlock(const uint8_t *pixels, uint16_t x, uint16_t y, uint16_t w, uint16_t h);
-extern void DisplayDriver_TransferCompleteCallback();
+extern void DisplayDriver_TransferCompleteCallback(void);
 extern void touchgfxSignalVSync(void);
 #endif /* DISPLAY_USING_TOUCHGFX */
+/* ===== New high-level API for RTOS-safe integration ===== */
+
+/**
+ * Display driver configuration passed to displ_init
+ */
+typedef struct
+{
+  SPI_HandleTypeDef *hspi;      /**< SPI handle (e.g. &hspi1) */
+  osMutexId_t        spi_mutex; /**< Shared SPI mutex (CMSIS-RTOS2) */
+} displ_config_t;
+
+/**
+ * Initialize display driver and hardware.
+ * This wraps the legacy Displ_Init and sets up DMA sync primitives.
+ */
+void displ_init(displ_config_t *cfg);
+
+/**
+ * Set drawing window (inclusive coordinates)
+ */
+void displ_set_window(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1);
+
+/**
+ * Write pixels (RGB565) to display using DMA. Blocks up to 100ms waiting for completion.
+ */
+void displ_write_pixels(uint16_t *data, uint32_t count);
+
+/**
+ * Fill rectangle with solid color (RGB565)
+ */
+void displ_fill_rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color);
+
+/**
+ * Draw a simple string using existing font routines (wrapper)
+ */
+void displ_draw_string(uint16_t x, uint16_t y, const char *str, uint16_t color);
+
+/* Declare DMA semaphores so drivers can share them via os_lib macros */
+OS_SEM_DECLARE(DISPL_DMA);
+OS_SEM_DECLARE(TOUCH_DMA);
 
 #endif /* __Z_DISPL_ILI9XXX_H */

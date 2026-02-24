@@ -21,7 +21,6 @@
 #include "stm32f4xx_it.h"
 
 #include "main.h"
-#include "usart.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -60,12 +59,13 @@
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
-extern DMA_HandleTypeDef hdma_spi1_rx;
-extern DMA_HandleTypeDef hdma_spi1_tx;
-extern DMA_HandleTypeDef hdma_usart1_rx;
-extern DMA_HandleTypeDef hdma_usart1_tx;
-extern SPI_HandleTypeDef hspi1;
-extern TIM_HandleTypeDef htim1;
+extern DMA_HandleTypeDef  hdma_spi1_rx;
+extern DMA_HandleTypeDef  hdma_spi1_tx;
+extern SPI_HandleTypeDef  hspi1;
+extern DMA_HandleTypeDef  hdma_usart1_rx;
+extern DMA_HandleTypeDef  hdma_usart1_tx;
+extern UART_HandleTypeDef huart1;
+extern TIM_HandleTypeDef  htim1;
 
 /* USER CODE BEGIN EV */
 

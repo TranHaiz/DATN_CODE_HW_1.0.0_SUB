@@ -24,7 +24,9 @@
 #include "fatfs.h"
 #include "gpio.h"
 #include "spi.h"
+#include "tim.h"
 #include "usart.h"
+
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -229,6 +231,8 @@ int main(void)
   MX_SPI1_Init();
   MX_FATFS_Init();
   MX_USART1_UART_Init();
+  MX_SPI2_Init();
+  MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
   OS_THREAD_CREATE(uart_Test, test_uart);
 

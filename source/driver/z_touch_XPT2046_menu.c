@@ -1,3 +1,62 @@
+/* Simple touch-driven menu module */
+#include "z_touch_XPT2046_menu.h"
+
+#include "z_touch_XPT2046.h"
+
+#include <string.h>
+
+
+static menu_config_t *g_cfg = NULL;
+
+void menu_init(menu_config_t *cfg, menu_btn_t *btn_array, uint8_t max_buttons)
+{
+  if (cfg == NULL || btn_array == NULL || max_buttons == 0)
+    return;
+  cfg->buttons     = btn_array;
+  cfg->max_buttons = max_buttons;
+  cfg->btn_count   = 0;
+  g_cfg            = cfg;
+}
+
+bool menu_add_button(menu_btn_t *btn)
+{
+  if (g_cfg == NULL || btn == NULL)
+    return false;
+  if (g_cfg->btn_count >= g_cfg->max_buttons)
+    return false;
+  g_cfg->buttons[g_cfg->btn_count++] = *btn;  // copy
+  return true;
+}
+
+void menu_render(void)
+{
+  if (g_cfg == NULL)
+    return;
+  for (uint8_t i = 0; i < g_cfg->btn_count; i++)
+  {
+    menu_btn_t *b = &g_cfg->buttons[i];
+    displ_fill_rect(b->x, b->y, b->w, b->h, DDD_WHITE);
+    displ_draw_string(b->x + 4, b->y + 4, b->label, DD_WHITE);
+  }
+}
+
+void menu_process_touch(void)
+{
+  if (g_cfg == NULL)
+    return;
+  uint16_t tx, ty;
+  if (!touch_read_calibrated(&tx, &ty))
+    return;
+  for (uint8_t i = 0; i < g_cfg->btn_count; i++)
+  {
+    menu_btn_t *b = &g_cfg->buttons[i];
+    if (tx >= b->x && tx < (b->x + b->w) && ty >= b->y && ty < (b->y + b->h))
+    {
+      if (b->cb)
+        b->cb();
+    }
+  }
+}
 /*
  * z_touch_XPT2046_menu.c
  *

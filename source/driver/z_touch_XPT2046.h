@@ -1,4 +1,38 @@
 /*
+ * z_touch_XPT2046.h
+ * RTOS-friendly wrapper API for XPT2046 touchscreen (DMA based)
+ */
+#ifndef __Z_TOUCH_XPT2046_H
+#define __Z_TOUCH_XPT2046_H
+
+#include "main.h"
+#include "z_displ_ILI9XXX.h"
+
+#include <stdbool.h>
+#include <stdint.h>
+
+typedef struct
+{
+  SPI_HandleTypeDef *hspi;      /**< SPI handle (e.g. &hspi1 or &TOUCH_SPI_PORT) */
+  osMutexId_t        spi_mutex; /**< Shared SPI mutex (CMSIS) */
+  /* Calibration parameters: x_cal = ax*raw + bx */
+  int32_t ax, bx;
+  int32_t ay, by;
+} touch_config_t;
+
+/** Initialize touch driver with configuration. */
+void touch_init(touch_config_t *cfg);
+
+/** Return true if touch is currently pressed (interrupt driven). */
+bool touch_is_pressed(void);
+
+/** Read raw ADC coordinates (12-bit). Returns true on success. */
+bool touch_read_raw(uint16_t *x, uint16_t *y);
+
+/** Read calibrated screen coordinates. Returns true on success. */
+bool touch_read_calibrated(uint16_t *x, uint16_t *y);
+
+/*
  * 	z_touch_XPT2046.h
  *	rel. TouchGFX.1.30
  *
@@ -26,8 +60,6 @@ bool STM32TouchController::sampleTouch(int32_t& x, int32_t& y)
  *  see also z_displ_ili9XXX.h
  *
  */
-#ifndef __XPT2046_H
-#define __XPT2046_H
 
 /*||||||||||| USER/PROJECT PARAMETERS |||||||||||*/
 

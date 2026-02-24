@@ -14,8 +14,12 @@
 #ifndef __LIB_H_
 #define _FS_LIB_H_
 /* Includes ----------------------------------------------------------- */
+#include "FreeRTOS.h"
 #include "cmsis_os2.h"
 #include "common_type.h"
+#include "semphr.h"
+#include "task.h"
+
 
 /* Public defines ----------------------------------------------------- */
 /* Define one of: CONFIG_HAL_ONLY, CONFIG_FREE_RTOS */
@@ -99,8 +103,28 @@
     name##_sem_handle = NULL;            \
   } while (0)
 
-#define OS_MAX_DELAY osWaitForever
-#define OS_MS        pdMS_TO_TICKS(ms)
+#define OS_MAX_DELAY                 osWaitForever
+#define OS_MS                        pdMS_TO_TICKS(ms)
+
+/* Mutex helpers (simple thin wrappers using CMSIS-RTOS2 mutexes).
+ * These macros provide a consistent abstraction analogous to the semaphore
+ * helpers above. Use OS_MUTEX_CREATE/ACQUIRE/RELEASE as needed.
+ */
+#define OS_MUTEX_DEFINE_STATIC(name) static osMutexId_t name##_mutex = NULL
+#define OS_MUTEX_DEFINE_GLOBAL(name) osMutexId_t name##_mutex = NULL
+
+#define OS_MUTEX_CREATE(name)          \
+  do                                   \
+  {                                    \
+    if (name##_mutex == NULL)          \
+    {                                  \
+      name##_mutex = osMutexNew(NULL); \
+    }                                  \
+  } while (0)
+
+#define OS_MUTEX_ACQUIRE(handle, timeout) osMutexAcquire((handle), (timeout))
+#define OS_MUTEX_RELEASE(handle)          osMutexRelease((handle))
+#define OS_MUTEX_DELETE(handle)           osMutexDelete((handle))
 
 #elif defined(CONFIG_PTOTO_THREAD)  // lightweight protothread OS
 // Protothread delay implementation (to be defined)

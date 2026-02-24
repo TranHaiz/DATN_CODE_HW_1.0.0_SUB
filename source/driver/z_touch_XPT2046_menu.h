@@ -1,3 +1,43 @@
+/* Simple touch-driven menu module using z_touch_XPT2046 and display APIs */
+#ifndef __Z_TOUCH_XPT2046_MENU_H
+#define __Z_TOUCH_XPT2046_MENU_H
+
+#include "z_displ_ILI9XXX.h"
+
+#include <stdbool.h>
+#include <stdint.h>
+
+typedef void (*menu_btn_cb_t)(void);
+
+typedef struct
+{
+  uint16_t      x, y, w, h;
+  const char   *label;
+  menu_btn_cb_t cb;
+} menu_btn_t;
+
+typedef struct
+{
+  menu_btn_t *buttons;
+  uint8_t     max_buttons;
+  uint8_t     btn_count;
+} menu_config_t;
+
+/** Initialize menu with pre-allocated button array (no dynamic alloc).
+ *  The provided array must remain valid for the lifetime of the menu.
+ */
+void menu_init(menu_config_t *cfg, menu_btn_t *btn_array, uint8_t max_buttons);
+
+/** Add a button (stored in pre-allocated array). */
+bool menu_add_button(menu_btn_t *btn);
+
+/** Render all buttons (simple filled rect + label). */
+void menu_render(void);
+
+/** Poll touch and invoke callbacks if a button was pressed. */
+void menu_process_touch(void);
+
+#endif
 /*
  * z_touch_XPT2046_menu.h
  *
